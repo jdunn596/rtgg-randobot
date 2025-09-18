@@ -4,6 +4,8 @@ import gql
 from gql.transport.aiohttp import AIOHTTPTransport
 from gql.transport.exceptions import TransportError
 
+from .utils import capture_exception
+
 
 class MidosHouse:
     def __init__(self):
@@ -22,7 +24,8 @@ class MidosHouse:
                 response = await self.client.execute_async(query)
                 self.cache_expires_at = time.monotonic() + 60 * 60 * 24
                 self.cache = response['goalNames']
-            except TransportError: # if anything goes wrong, assume Mido's House is down and we should handle the room
+            except TransportError as ex:  # if anything goes wrong, assume Mido's House is down and we should handle the room
+                capture_exception(ex)
                 self.cache_expires_at = time.monotonic() + 60
                 self.cache = None
         if self.cache is None:
