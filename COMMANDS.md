@@ -2,15 +2,26 @@
 
 These are the commands currently supported by OoTR's RandoBot.
 
+## !branch
+
+Usable by: anyone (unless seed is already rolled)
+
+Select which ootrandomizer.com branch to use when rolling a seed, whether it be
+the stable (release) branch or one of a development branches.
+
+Once a seed has been generated using `!seed` (or `!spoilerseed`), subsequent
+calls to `!branch` will not work unless used by a moderator.
+
 ## !seed
 
 Usable by: anyone (unless lock is present)
 
-Roll a race seed on ootrandomizer.com using the specified preset (if given) and
+If `!branch` has not been set, this command will do nothing.
+
+Roll a seed on ootrandomizer.com using the specified preset and
 post a link to the generated seed in the race information.
 
-Available presets can be checked using the `!presets` command. If no preset is
-given then "weekly" is assumed.
+Available presets can be checked using the `!presets` command.
 
 If seed rolling has been locked with the `!lock` command then `!seed` will not
 generate a seed unless it's used by a race monitor or moderator.
@@ -22,7 +33,7 @@ calls to `!seed` will not work unless used by a moderator.
 
 Usable by: anyone (unless lock is present)
 
-Roll a non-race seed (i.e. seed with spoiler log). This is identical to
+Roll a seed with a spoiler log. This is identical to
 `!seed`, except for the addition of the spoiler log. The patch file will also
 not be encrypted.
 
@@ -30,8 +41,10 @@ not be encrypted.
 
 Usable by: anyone
 
-The bot will print out a list of available presets for use with the `!seed` or
-`!spoilerseed` commands. Each preset is usually a single word, e.g. "s4" or
+If `!branch` has not been set, this command will do nothing.
+
+The bot will print out a list of available presets from currently selected branch for use with the `!seed` or
+`!spoilerseed` commands. Each preset is usually a single word, e.g. "s9" or
 "weekly".
 
 Presets are set by ootrandomizer.com and are not controlled by the bot itself.
