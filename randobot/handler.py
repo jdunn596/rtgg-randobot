@@ -389,6 +389,13 @@ class RandoHandler(RaceHandler):
         """
         reply_to = message.get('user', {}).get('name')
 
+        if len(args) == 0:
+            await self.send_message(
+                'Sorry %(reply_to)s, that is not the correct syntax. '
+                'The syntax is "!seed presetName {--withpassword}'
+                % {'reply_to': reply_to or 'friend'}
+            )
+            return
         if len(args) > 0:
             preset = args[0]
 
