@@ -43,7 +43,7 @@ Usable by: anyone
 
 If `!branch` has not been set, this command will do nothing.
 
-The bot will print out a list of available presets from currently selected branch for use with the `!seed` or
+The bot will print out a list of available presets from the currently selected branch for use with the `!seed` or
 `!spoilerseed` commands. Each preset is usually a single word, e.g. "s9" or
 "weekly".
 
