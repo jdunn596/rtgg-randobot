@@ -125,7 +125,7 @@ class ZSR:
         """
         Generate a seed and return its public URL.
         """
-        dev = branch != 'master'
+        dev = branch != 'stable'
 
         if dev:
             latest_version, changed = self.get_latest_version(branch)
