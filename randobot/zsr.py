@@ -13,34 +13,17 @@ class ZSR:
     details_endpoint = 'https://ootrandomizer.com/api/v2/seed/details'
     password_endpoint = 'https://ootrandomizer.com/api/v2/seed/pw'
     version_endpoint = 'https://ootrandomizer.com/api/version'
+    settings_endpoints = [
+        'https://raw.githubusercontent.com/OoTRandomizer/OoT-Randomizer/release/data/presets_default.json',
+        'https://raw.githubusercontent.com/OoTRandomizer/OoT-Randomizer/Dev/data/presets_default.json',
+        'https://raw.githubusercontent.com/rrealmuto/OoT-Randomizer/Dev-Rob/data/presets_default.json',
+        'https://raw.githubusercontent.com/fenhl/OoT-Randomizer/dev-fenhl/data/presets_default.json',
+        'https://raw.githubusercontent.com/rrealmuto/OoT-Randomizer/enemy_shuffle/data/presets_default.json'
+    ]
 
-    randomizer_branches = {
-        'stable': {
-            'name': 'Stable (Release)',
-            'target_name': 'master',
-            'settings_endpoint': 'https://raw.githubusercontent.com/OoTRandomizer/OoT-Randomizer/release/data/presets_default.json'
-        },
-        'dev': {
-            'name': 'Dev (Main)',
-            'target_name': 'dev',
-            'settings_endpoint': 'https://raw.githubusercontent.com/OoTRandomizer/OoT-Randomizer/Dev/data/presets_default.json'
-        },
-        'dev-rob': {
-            'name': 'Dev-Rob',
-            'target_name': 'devrreal',
-            'settings_endpoint': 'https://raw.githubusercontent.com/rrealmuto/OoT-Randomizer/Dev-Rob/data/presets_default.json'
-        },
-        'dev-fenhl': {
-            'name': 'Dev-Fenhl',
-            'target_name': 'devFenhl',
-            'settings_endpoint': 'https://raw.githubusercontent.com/fenhl/OoT-Randomizer/dev-fenhl/data/presets_default.json'
-        },
-        'dev-enemy-shuffle': {
-            'name': 'Dev-Enemy-Shuffle',
-            'target_name': 'devEnemyShuffle',
-            'settings_endpoint': 'https://raw.githubusercontent.com/rrealmuto/OoT-Randomizer/enemy_shuffle/data/presets_default.json'
-        }
-    }
+    valid_version_args = ['stable', 'dev', 'dev-rob', 'dev-fenhl', 'dev-enemy-shuffle']
+    version_names = ['Stable (Release)', 'Dev (Main)', 'Dev-Rob', 'Dev-Fenhl', 'Dev-Enemy-Shuffle']
+    ootr_version_names = ['master', 'dev', 'devrreal', 'devFenhl', 'devEnemyShuffle']
 
     hash_map = {
         'Beans': 'HashBeans',
@@ -87,51 +70,39 @@ class ZSR:
 
     def __init__(self, ootr_api_key):
         self.ootr_api_key = ootr_api_key
-        self.presets = {}
-        self.branch_versions = {}
+        self.version_map = {}
+        self.build_version_map()
 
-        for branch in self.randomizer_branches:
-            self.load_presets(branch)
-            self.get_latest_version(branch)
+    def build_version_map(self):
+        for i, rtgg_arg in enumerate(self.valid_version_args):
+            self.version_map[rtgg_arg] = Branch(
+                rtgg_arg = rtgg_arg,
+                name=self.version_names[i],
+                ootr_name=self.ootr_version_names[i],
+                version=self.get_latest_version(self.ootr_version_names[i]),
+                settings_endpoint=self.settings_endpoints[i]
+            )
 
-    def get_latest_version(self, branch):
+    def get_latest_version(self, ootr_name):
         """
         Fetch the latest version of the supplied randomzier branch.
         """
-        target = self.randomizer_branches[branch]['target_name']
-        version_req = requests.get(self.version_endpoint, params={'branch': target}).json()
+        version_req = requests.get(self.version_endpoint, params={'branch': ootr_name}).json()
         latest_version = version_req['currentlyActiveVersion']
-
-        if latest_version != self.branch_versions.get(branch):
-            self.branch_versions[branch] = latest_version
-            return latest_version, True
-        return latest_version, False
-                
-    def load_presets(self, branch):
-        """
-        Load and return available seed presets.
-        """
-        settings = requests.get(self.randomizer_branches[branch]['settings_endpoint']).json()
-
-        self.presets[branch] = {
-            min(settings[preset]['aliases'], key=len): {
-                'full_name': preset,
-                'settings': settings.get(preset),
-            }
-            for preset in settings if 'aliases' in settings[preset]
-        }
+        return latest_version
 
     def roll_seed(self, preset, encrypt, branch, password=False):
         """
         Generate a seed and return its public URL.
         """
-        dev = branch != 'stable'
+        dev = branch.rtgg_arg != 'stable'
 
         if dev:
-            latest_version, changed = self.get_latest_version(branch)
-            if changed:
-                self.load_presets(branch)
-        req_body = json.dumps(self.presets[branch][preset]['settings'])
+            latest_version = self.get_latest_version(branch.ootr_name)
+            if latest_version != branch.version:
+                branch.update_version(latest_version)
+                branch.load_presets()
+        req_body = json.dumps(branch.presets[preset]['settings'])
 
         params = {
             'key': self.ootr_api_key,
@@ -143,7 +114,7 @@ class ZSR:
         if password:
             params['passwordLock'] = 'true'
         if dev:
-            params['version'] = self.randomizer_branches[branch]['target_name'] + '_' + latest_version
+            params['version'] = branch.ootr_name + '_' + branch.version
         data = requests.post(self.seed_endpoint, req_body, params=params,
                              headers={'Content-Type': 'application/json'}).json()
         return data['id'], self.seed_public % data
@@ -196,3 +167,27 @@ class ZSR:
                     time.sleep(delay)
                 else:
                     return None
+
+
+class Branch:
+    def __init__(self, rtgg_arg, name, ootr_name, version, settings_endpoint):
+        self.rtgg_arg = rtgg_arg
+        self.name = name
+        self.ootr_name = ootr_name
+        self.version = version
+        self.settings_endpoint = settings_endpoint
+        self.presets = self.load_presets()
+
+    def load_presets(self):
+        settings = requests.get(self.settings_endpoint).json()
+
+        return {
+            min(settings[preset]['aliases'], key=len): {
+                'full_name': preset,
+                'settings': settings.get(preset),
+            }
+            for preset in settings if 'aliases' in settings[preset]
+        }
+    
+    def update_version(self, version):
+        self.version = version

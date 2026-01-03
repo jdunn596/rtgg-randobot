@@ -112,7 +112,7 @@ class RandoHandler(RaceHandler):
                             msg_actions.SelectInput(
                                 name='branch',
                                 label='Branch',
-                                options={key: value['name'] for key, value in self.zsr.randomizer_branches.items()},
+                                options={key: value.name for key, value in self.zsr.version_map.items()},
                                 default='stable'
                             )
                         ),
@@ -135,12 +135,14 @@ class RandoHandler(RaceHandler):
             self.state['password_published'] = False
         if 'password_retrieval_failed' not in self.state:
             self.state['password_retrieval_failed'] = False
-        if 'randomizer_branch' not in self.state:
-            self.state['randomizer_branch'] = None
+        if 'version_selected' not in self.state:
+            self.state['version_selected'] = False
 
     async def end(self):
         if self.state.get('pinned_msg'):
             await self.unpin_message(self.state['pinned_msg'])
+        if self.state.get('randomizer_branch'):
+            del self.state['randomizer_branch']
 
     async def chat_message(self, data):
         message = data.get('message', {})
@@ -167,9 +169,12 @@ class RandoHandler(RaceHandler):
                 % {'seed_password': self.state['seed_password']}
             )
             self.state['password_published'] = True
-        if self._race_in_progress() and self.state.get('pinned_msg'):
-            await self.unpin_message(self.state['pinned_msg'])
-            del self.state['pinned_msg']
+        if self._race_in_progress():
+            if self.state.get('pinned_msg'):
+                await self.unpin_message(self.state['pinned_msg'])
+                del self.state['pinned_msg']
+            if self.state.get('randomizer_branch'):
+                del self.state['randomizer_branch']
 
     async def ex_branch(self, args, message):
         """
@@ -182,14 +187,12 @@ class RandoHandler(RaceHandler):
         if self.state.get('seed_id') and not can_moderate(message):
             return
         if len(args) == 1:
-            if args[0] in self.zsr.randomizer_branches:
-                branch = args[0]
-                self.state['randomizer_branch'] = branch
-                name = self.zsr.randomizer_branches[branch]['name']
-                version = self.zsr.branch_versions[branch]
+            if args[0] in self.zsr.version_map:
+                self.state['randomizer_branch'] = branch = self.zsr.version_map[args[0]]
+                self.state['version_selected'] = True
 
                 await self.send_message(
-                    f'The seed will be rolled on: {name} v{version}',
+                    f'The seed will be rolled on: {branch.name} v{branch.version}',
                     actions=[
                         msg_actions.Action(
                             label='Roll race seed',
@@ -200,7 +203,7 @@ class RandoHandler(RaceHandler):
                                 msg_actions.SelectInput(
                                     name='preset',
                                     label='Preset',
-                                    options={key: value['full_name'] for key, value in self.zsr.presets[branch].items()},
+                                    options={key: value['full_name'] for key, value in branch.presets.items()},
                                 ),
                                 msg_actions.BoolInput(
                                     name='--withpassword',
@@ -218,7 +221,7 @@ class RandoHandler(RaceHandler):
                                 msg_actions.SelectInput(
                                     name='preset',
                                     label='Preset',
-                                    options={key: value['full_name'] for key, value in self.zsr.presets[branch].items()},
+                                    options={key: value['full_name'] for key, value in branch.presets.items()},
                                 ),
                                 msg_actions.BoolInput(
                                     name='--withpassword',
@@ -239,7 +242,7 @@ class RandoHandler(RaceHandler):
                     'Valid options are: %(options)s'
                     % {
                         'reply_to': message.get('user', {}).get('name', 'friend'),
-                        'options': ', '.join(branch for branch in self.zsr.randomizer_branches)
+                        'options': ', '.join(rtgg_arg for rtgg_arg in self.zsr.valid_version_args)
                     }
                 )
         else:
@@ -283,7 +286,7 @@ class RandoHandler(RaceHandler):
         """
         if self._race_in_progress():
             return
-        if self.state['randomizer_branch'] is None:
+        if not self.state['version_selected']:
             return
         await self.roll_and_send(args, message, branch=self.state['randomizer_branch'], encrypt=True)
 
@@ -293,7 +296,7 @@ class RandoHandler(RaceHandler):
         """
         if self._race_in_progress():
             return
-        if self.state['randomizer_branch'] is None:
+        if not self.state['version_selected']:
             return
         await self.roll_and_send(args, message, branch=self.state['randomizer_branch'], encrypt=False)
 
@@ -303,7 +306,7 @@ class RandoHandler(RaceHandler):
         """
         if self._race_in_progress():
             return
-        if self.state['randomizer_branch'] is None:
+        if not self.state['version_selected']:
             return
         await self.send_presets(self.state['randomizer_branch'])
 
@@ -437,7 +440,7 @@ class RandoHandler(RaceHandler):
         """
         Generate a seed and send it to the race room.
         """
-        if preset not in self.zsr.presets[branch]:
+        if preset not in branch.presets:
             await self.send_message(
                 'Sorry %(reply_to)s, I don\'t recognise that preset. Use '
                 '!presets to see what is available.'
@@ -513,7 +516,7 @@ class RandoHandler(RaceHandler):
         Send a list of known presets to the race room.
         """
         await self.send_message('Available presets:')
-        for name, preset in self.zsr.presets[branch].items():
+        for name, preset in branch.presets.items():
             await self.send_message('%s – %s' % (name, preset['full_name']))
 
     def _race_pending(self):
