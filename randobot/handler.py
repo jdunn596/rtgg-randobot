@@ -448,7 +448,7 @@ class RandoHandler(RaceHandler):
             )
             return
 
-        seed_id, seed_uri = self.zsr.roll_seed(preset, encrypt, branch, password)
+        seed_id, seed_uri = self.zsr.roll_seed(preset, branch, encrypt, password)
 
         await self.send_message(
             '%(reply_to)s, here is your seed: %(seed_uri)s'

@@ -79,26 +79,17 @@ class ZSR:
                 rtgg_arg = rtgg_arg,
                 name=self.version_names[i],
                 ootr_name=self.ootr_version_names[i],
-                version=self.get_latest_version(self.ootr_version_names[i]),
                 settings_endpoint=self.settings_endpoints[i]
             )
 
-    def get_latest_version(self, ootr_name):
-        """
-        Fetch the latest version of the supplied randomzier branch.
-        """
-        version_req = requests.get(self.version_endpoint, params={'branch': ootr_name}).json()
-        latest_version = version_req['currentlyActiveVersion']
-        return latest_version
-
-    def roll_seed(self, preset, encrypt, branch, password=False):
+    def roll_seed(self, preset, branch, encrypt, password=False):
         """
         Generate a seed and return its public URL.
         """
         dev = branch.rtgg_arg != 'stable'
 
         if dev:
-            latest_version = self.get_latest_version(branch.ootr_name)
+            latest_version = branch.get_latest_version()
             if latest_version != branch.version:
                 branch.update_version(latest_version)
                 branch.load_presets()
@@ -170,12 +161,12 @@ class ZSR:
 
 
 class Branch:
-    def __init__(self, rtgg_arg, name, ootr_name, version, settings_endpoint):
+    def __init__(self, rtgg_arg, name, ootr_name, settings_endpoint):
         self.rtgg_arg = rtgg_arg
         self.name = name
         self.ootr_name = ootr_name
-        self.version = version
         self.settings_endpoint = settings_endpoint
+        self.version = self.get_latest_version()
         self.presets = self.load_presets()
 
     def load_presets(self):
@@ -188,6 +179,14 @@ class Branch:
             }
             for preset in settings if 'aliases' in settings[preset]
         }
+    
+    def get_latest_version(self):
+        """
+        Fetch the latest version of the supplied randomzier branch.
+        """
+        version_req = requests.get(ZSR.version_endpoint, params={'branch': self.ootr_name}).json()
+        latest_version = version_req['currentlyActiveVersion']
+        return latest_version
     
     def update_version(self, version):
         self.version = version
