@@ -4,21 +4,19 @@ These are the commands currently supported by OoTR's RandoBot.
 
 ## !branch
 
-Usable by: anyone (unless seed is already rolled)
+Usable by: **race monitor/moderators/room opener only** (unless seed is already rolled)
 
 Select which ootrandomizer.com branch to use when rolling a seed, whether it be
 the stable (release) branch or one of a development branches.
 
 Once a seed has been generated using `!seed` (or `!spoilerseed`), subsequent
-calls to `!branch` will not work unless used by a moderator.
+calls to `!branch` will not work unless used by a race moderator.
 
 ## !seed
 
 Usable by: anyone (unless lock is present)
 
-If `!branch` has not been set, this command will do nothing.
-
-Roll a seed on ootrandomizer.com using the specified preset and
+Roll a seed on ootrandomizer.com using the specified preset (if given, otherwise defaults to 'weekly') and
 post a link to the generated seed in the race information.
 
 Available presets can be checked using the `!presets` command.
@@ -40,8 +38,6 @@ not be encrypted.
 ## !presets
 
 Usable by: anyone
-
-If `!branch` has not been set, this command will do nothing.
 
 The bot will print out a list of available presets from the currently selected branch for use with the `!seed` or
 `!spoilerseed` commands. Each preset is usually a single word, e.g. "s9" or
