@@ -21,9 +21,13 @@ class ZSR:
         'https://raw.githubusercontent.com/rrealmuto/OoT-Randomizer/enemy_shuffle/data/presets_default.json'
     ]
 
-    valid_version_args = ['stable', 'dev', 'dev-rob', 'dev-fenhl', 'dev-enemy-shuffle']
-    version_names = ['Stable (Release)', 'Dev (Main)', 'Dev-Rob', 'Dev-Fenhl', 'Dev-Enemy-Shuffle']
-    ootr_version_names = ['master', 'dev', 'devrreal', 'devFenhl', 'devEnemyShuffle']
+    valid_versions = (
+        ('stable', 'Stable (Release)', 'master'),
+        ('dev', 'Dev (Main)', 'dev'),
+        ('dev-rob', 'Dev-Rob', 'devrreal'),
+        ('dev-fenhl', 'Dev-Fenhl', 'devFenhl'),
+        ('dev-enemy-shuffle', 'Dev-Enemy-Shuffle', 'devEnemyShuffle')
+    )
 
     hash_map = {
         'Beans': 'HashBeans',
@@ -74,11 +78,11 @@ class ZSR:
         self.build_version_map()
 
     def build_version_map(self):
-        for i, rtgg_arg in enumerate(self.valid_version_args):
-            self.version_map[rtgg_arg] = Branch(
-                rtgg_arg = rtgg_arg,
-                name=self.version_names[i],
-                ootr_name=self.ootr_version_names[i],
+        for i, branch in enumerate(self.valid_versions):
+            self.version_map[branch[0]] = Branch(
+                rtgg_arg = self.valid_versions[i][0],
+                name=self.valid_versions[i][1],
+                ootr_name=self.valid_versions[i][2],
                 settings_endpoint=self.settings_endpoints[i]
             )
 
@@ -182,7 +186,7 @@ class Branch:
     
     def get_latest_version(self):
         """
-        Fetch the latest version of the supplied randomzier branch.
+        Fetch the latest version of the supplied randomizer branch.
         """
         version_req = requests.get(ZSR.version_endpoint, params={'branch': self.ootr_name}).json()
         latest_version = version_req['currentlyActiveVersion']
