@@ -13,20 +13,13 @@ class ZSR:
     details_endpoint = 'https://ootrandomizer.com/api/v2/seed/details'
     password_endpoint = 'https://ootrandomizer.com/api/v2/seed/pw'
     version_endpoint = 'https://ootrandomizer.com/api/version'
-    settings_endpoints = [
-        'https://raw.githubusercontent.com/OoTRandomizer/OoT-Randomizer/release/data/presets_default.json',
-        'https://raw.githubusercontent.com/OoTRandomizer/OoT-Randomizer/Dev/data/presets_default.json',
-        'https://raw.githubusercontent.com/rrealmuto/OoT-Randomizer/Dev-Rob/data/presets_default.json',
-        'https://raw.githubusercontent.com/fenhl/OoT-Randomizer/dev-fenhl/data/presets_default.json',
-        'https://raw.githubusercontent.com/rrealmuto/OoT-Randomizer/enemy_shuffle/data/presets_default.json'
-    ]
 
     valid_versions = (
-        ('stable', 'Stable (Release)', 'master'),
-        ('dev', 'Dev (Main)', 'dev'),
-        ('dev-rob', 'Dev-Rob', 'devrreal'),
-        ('dev-fenhl', 'Dev-Fenhl', 'devFenhl'),
-        ('dev-enemy-shuffle', 'Dev-Enemy-Shuffle', 'devEnemyShuffle')
+        ('stable', 'Stable (Release)', 'master', 'https://raw.githubusercontent.com/OoTRandomizer/OoT-Randomizer/release/data/presets_default.json'),
+        ('dev', 'Dev (Main)', 'dev', 'https://raw.githubusercontent.com/OoTRandomizer/OoT-Randomizer/Dev/data/presets_default.json'),
+        ('dev-rob', 'Dev-Rob', 'devrreal', 'https://raw.githubusercontent.com/rrealmuto/OoT-Randomizer/Dev-Rob/data/presets_default.json'),
+        ('dev-fenhl', 'Dev-Fenhl', 'devFenhl', 'https://raw.githubusercontent.com/fenhl/OoT-Randomizer/dev-fenhl/data/presets_default.json'),
+        ('dev-enemy-shuffle', 'Dev-Enemy-Shuffle', 'devEnemyShuffle', 'https://raw.githubusercontent.com/rrealmuto/OoT-Randomizer/enemy_shuffle/data/presets_default.json')
     )
 
     hash_map = {
@@ -83,7 +76,7 @@ class ZSR:
                 rtgg_arg = self.valid_versions[i][0],
                 name=self.valid_versions[i][1],
                 ootr_name=self.valid_versions[i][2],
-                settings_endpoint=self.settings_endpoints[i]
+                settings_endpoint=self.valid_versions[i][3]
             )
 
     def roll_seed(self, preset, branch, encrypt, password=False):
