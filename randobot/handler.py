@@ -477,7 +477,7 @@ class RandoHandler(RaceHandler):
                 await self.load_seed_hash()
                 if self.state.get('password_active'):
                     await self.load_seed_password()
-                    return
+                return
             elif status >= 2:
                 break
 
