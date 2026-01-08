@@ -123,7 +123,7 @@ class RandoHandler(RaceHandler):
                         ),
                     ),
                     msg_actions.Action(
-                        label=' Change Branch',
+                        label='Change Branch',
                         help_text='Change the branch to use when rolling the seed.',
                         message='!branch ${branch}',
                         submit='Select',
