@@ -467,29 +467,25 @@ class RandoHandler(RaceHandler):
         await self.check_seed_status()
 
     async def check_seed_status(self):
-        await sleep(2)
-        status = self.zsr.get_status(self.state['seed_id'])
+        while self.state['status_checks'] < self.max_status_checks:
+            status = self.zsr.get_status(self.state['seed_id'])
 
-        if status == 0:
-            self.state['status_checks'] += 1
-            if self.state['status_checks'] < self.max_status_checks:
-                await self.check_seed_status()
-            else:
-                self.state['seed_id'] = None
-                await self.send_message(
-                'Sorry, but it looks like the seed failed to generate. Use '
-                '!seed to try again.'
-            )
-        elif status == 1:
-            await self.load_seed_hash()
-            if self.state.get('password_active'):
-                await self.load_seed_password()
-        elif status >= 2:
-            self.state['seed_id'] = None
-            await self.send_message(
-                'Sorry, but it looks like the seed failed to generate. Use '
-                '!seed to try again.'
-            )
+            if status == 0:
+                self.state['status_checks'] += 1
+                await sleep(2)
+            elif status == 1:
+                await self.load_seed_hash()
+                if self.state.get('password_active'):
+                    await self.load_seed_password()
+                    return
+            elif status >= 2:
+                break
+
+        self.state['seed_id'] = None
+        await self.send_message(
+            'Sorry, but it looks like the seed failed to generate. Use '
+            '!seed to try again.'
+        )
 
     async def load_seed_password(self, manual=False):
         seed_password = self.zsr.get_password(self.state['seed_id'])
