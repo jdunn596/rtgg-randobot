@@ -71,9 +71,9 @@ class ZSR:
         self.build_version_map()
 
     def build_version_map(self):
-        for i, branch in enumerate(self.valid_versions):
-            self.version_map[branch[0]] = Branch(
-                rtgg_arg = self.valid_versions[i][0],
+        for i in range(len(self.valid_versions)):
+            self.version_map[self.valid_versions[i][0]] = Branch(
+                rtgg_arg=self.valid_versions[i][0],
                 name=self.valid_versions[i][1],
                 ootr_name=self.valid_versions[i][2],
                 settings_endpoint=self.valid_versions[i][3]
