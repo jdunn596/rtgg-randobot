@@ -13,8 +13,14 @@ class ZSR:
     details_endpoint = 'https://ootrandomizer.com/api/v2/seed/details'
     password_endpoint = 'https://ootrandomizer.com/api/v2/seed/pw'
     version_endpoint = 'https://ootrandomizer.com/api/version'
-    settings_endpoint = 'https://raw.githubusercontent.com/TestRunnerSRL/OoT-Randomizer/release/data/presets_default.json'
-    settings_dev_endpoint = 'https://raw.githubusercontent.com/TestRunnerSRL/OoT-Randomizer/Dev/data/presets_default.json'
+
+    valid_versions = (
+        ('stable', 'Stable (Release)', 'master', 'https://raw.githubusercontent.com/OoTRandomizer/OoT-Randomizer/release/data/presets_default.json'),
+        ('dev', 'Dev (Main)', 'dev', 'https://raw.githubusercontent.com/OoTRandomizer/OoT-Randomizer/Dev/data/presets_default.json'),
+        ('dev-rob', 'Dev-Rob', 'devrreal', 'https://raw.githubusercontent.com/rrealmuto/OoT-Randomizer/Dev-Rob/data/presets_default.json'),
+        ('dev-fenhl', 'Dev-Fenhl', 'devFenhl', 'https://raw.githubusercontent.com/fenhl/OoT-Randomizer/dev-fenhl/data/presets_default.json'),
+        ('dev-enemy-shuffle', 'Dev-Enemy-Shuffle', 'devEnemyShuffle', 'https://raw.githubusercontent.com/rrealmuto/OoT-Randomizer/enemy_shuffle/data/presets_default.json')
+    )
 
     hash_map = {
         'Beans': 'HashBeans',
@@ -61,50 +67,30 @@ class ZSR:
 
     def __init__(self, ootr_api_key):
         self.ootr_api_key = ootr_api_key
-        self.presets = self.load_presets()
-        self.presets_dev = self.load_presets(dev=True)
-        self.last_known_dev_version = None
-        self.get_latest_dev_version()
+        self.version_map = {}
+        self.build_version_map()
 
-    def load_presets(self, dev=False):
-        """
-        Load and return available seed presets.
-        """
-        if dev:
-            settings = requests.get(self.settings_dev_endpoint).json()
-        else:
-            settings = requests.get(self.settings_endpoint).json()
+    def build_version_map(self):
+        for i in range(len(self.valid_versions)):
+            self.version_map[self.valid_versions[i][0]] = Branch(
+                rtgg_arg=self.valid_versions[i][0],
+                name=self.valid_versions[i][1],
+                ootr_name=self.valid_versions[i][2],
+                settings_endpoint=self.valid_versions[i][3]
+            )
 
-        return {
-            min(settings[preset]['aliases'], key=len): {
-                'full_name': preset,
-                'settings': settings.get(preset),
-            }
-            for preset in settings
-        }
-
-    def get_latest_dev_version(self):
-        """
-        Returns currently active dev version and a bool indicating if it's changed.
-        """
-        version_req = requests.get(self.version_endpoint, params={'branch': 'dev'}).json()
-        latest_dev_version = version_req['currentlyActiveVersion']
-        if latest_dev_version != self.last_known_dev_version:
-            self.last_known_dev_version = latest_dev_version
-            return latest_dev_version, True
-        return latest_dev_version, False
-
-    def roll_seed(self, preset, encrypt, dev, password=False):
+    def roll_seed(self, preset, branch, encrypt, password=False):
         """
         Generate a seed and return its public URL.
         """
+        dev = branch.rtgg_arg != 'stable'
+
         if dev:
-            latest_dev_version, changed = self.get_latest_dev_version()
-            if changed:
-                self.presets_dev = self.load_presets(dev=True)
-            req_body = json.dumps(self.presets_dev[preset]['settings'])
-        else:
-            req_body = json.dumps(self.presets[preset]['settings'])
+            latest_version = branch.get_latest_version()
+            if latest_version != branch.version:
+                branch.update_version(latest_version)
+                branch.load_presets()
+        req_body = json.dumps(branch.presets[preset]['settings'])
 
         params = {
             'key': self.ootr_api_key,
@@ -116,7 +102,7 @@ class ZSR:
         if password:
             params['passwordLock'] = 'true'
         if dev:
-            params['version'] = 'dev_' + latest_dev_version
+            params['version'] = branch.ootr_name + '_' + branch.version
         data = requests.post(self.seed_endpoint, req_body, params=params,
                              headers={'Content-Type': 'application/json'}).json()
         return data['id'], self.seed_public % data
@@ -169,3 +155,35 @@ class ZSR:
                     time.sleep(delay)
                 else:
                     return None
+
+
+class Branch:
+    def __init__(self, rtgg_arg, name, ootr_name, settings_endpoint):
+        self.rtgg_arg = rtgg_arg
+        self.name = name
+        self.ootr_name = ootr_name
+        self.settings_endpoint = settings_endpoint
+        self.version = self.get_latest_version()
+        self.presets = self.load_presets()
+
+    def load_presets(self):
+        settings = requests.get(self.settings_endpoint).json()
+
+        return {
+            min(settings[preset]['aliases'], key=len): {
+                'full_name': preset,
+                'settings': settings.get(preset),
+            }
+            for preset in settings if 'aliases' in settings[preset]
+        }
+    
+    def get_latest_version(self):
+        """
+        Fetch the latest version of the supplied randomizer branch.
+        """
+        version_req = requests.get(ZSR.version_endpoint, params={'branch': self.ootr_name}).json()
+        latest_version = version_req['currentlyActiveVersion']
+        return latest_version
+    
+    def update_version(self, version):
+        self.version = version

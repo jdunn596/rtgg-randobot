@@ -64,7 +64,7 @@ class RandoHandler(RaceHandler):
     """
     seed_url = 'https://ootrandomizer.com/seed/get?id=%s'
     stop_at = ['cancelled', 'finished']
-    max_status_checks = 50
+    max_status_checks = 90
     greetings = (
         'Let me roll a seed for you. I promise it won\'t hurt.',
         'It\'s dangerous to go alone. Take this?',
@@ -77,6 +77,7 @@ class RandoHandler(RaceHandler):
         super().__init__(**kwargs)
         self.zsr = zsr
         self.midos_house = midos_house
+        self.randomizer_branch = self.zsr.version_map['stable']
 
     async def should_stop(self):
         if self.data.get('opened_by') is None:
@@ -105,15 +106,14 @@ class RandoHandler(RaceHandler):
                 actions=[
                     msg_actions.Action(
                         label='Roll seed',
-                        help_text='Create a seed using the latest release',
+                        help_text='Create a seed using one of many presets',
                         message='!seed ${preset} ${--withpassword}',
-                        submit='Roll race seed',
+                        submit='Roll seed',
                         survey=msg_actions.Survey(
                             msg_actions.SelectInput(
                                 name='preset',
                                 label='Preset',
-                                options={key: value['full_name'] for key, value in self.zsr.presets.items()},
-                                default='s8',
+                                options={key: value['full_name'] for key, value in self.randomizer_branch.presets.items()},
                             ),
                             msg_actions.BoolInput(
                                 name='--withpassword',
@@ -123,22 +123,16 @@ class RandoHandler(RaceHandler):
                         ),
                     ),
                     msg_actions.Action(
-                        label='Dev seed',
-                        help_text='Create a seed using the latest dev branch',
-                        message='!seeddev ${preset} ${--withpassword}',
-                        submit='Roll dev seed',
+                        label='Change Branch',
+                        help_text='Change the branch to use when rolling the seed.',
+                        message='!branch ${branch}',
+                        submit='Select',
                         survey=msg_actions.Survey(
                             msg_actions.SelectInput(
-                                name='preset',
-                                label='Preset',
-                                options={key: value['full_name'] for key, value in self.zsr.presets_dev.items()},
-                                default='s8',
-                            ),
-                            msg_actions.BoolInput(
-                                name='--withpassword',
-                                label='Password',
-                                help_text='Locks file creation behind a 6 ocarina notes password provided at countdown start',
-                            ),
+                                name='branch',
+                                label='Branch',
+                                options={key: value.name for key, value in self.zsr.version_map.items()}
+                            )
                         ),
                     ),
                     msg_actions.ActionLink(
@@ -147,6 +141,9 @@ class RandoHandler(RaceHandler):
                     ),
                 ],
                 pinned=True,
+            )
+            await self.send_message(
+                f'The currently selected branch is: {self.randomizer_branch.name} v{self.randomizer_branch.version}'
             )
             self.state['intro_sent'] = True
         if 'locked' not in self.state:
@@ -189,9 +186,81 @@ class RandoHandler(RaceHandler):
                 % {'seed_password': self.state['seed_password']}
             )
             self.state['password_published'] = True
-        if self._race_in_progress() and self.state.get('pinned_msg'):
-            await self.unpin_message(self.state['pinned_msg'])
-            del self.state['pinned_msg']
+        if self._race_in_progress():
+            if self.state.get('pinned_msg'):
+                await self.unpin_message(self.state['pinned_msg'])
+                del self.state['pinned_msg']
+
+    @monitor_cmd
+    async def ex_branch(self, args, message):
+        """
+        Handle !branch commands.
+
+        Sets randomizer branch to use when rolling the seed.
+        """
+        if self._race_in_progress():
+            return
+        if self.state.get('seed_id') and not can_moderate(message):
+            return
+        if len(args) == 1:
+            if args[0] in self.zsr.version_map:
+                self.randomizer_branch = self.zsr.version_map[args[0]]
+
+                await self.send_message(
+                    f'Randomizer branch changed to: {self.randomizer_branch.name} v{self.randomizer_branch.version}',
+                    actions=[
+                        msg_actions.Action(
+                            label='Roll seed',
+                            help_text='Create a seed using one of many presets',
+                            message='!seed ${preset} ${--withpassword}',
+                            submit='Roll seed',
+                            survey=msg_actions.Survey(
+                                msg_actions.SelectInput(
+                                    name='preset',
+                                    label='Preset',
+                                    options={key: value['full_name'] for key, value in self.randomizer_branch.presets.items()},
+                                ),
+                                msg_actions.BoolInput(
+                                    name='--withpassword',
+                                    label='Password',
+                                    help_text='Locks file creation behind a 6 ocarina notes password provided at countdown start',
+                                ),
+                            ),
+                        ),
+                        msg_actions.Action(
+                            label=' Change Branch',
+                            help_text='Change the branch to use when rolling the seed.',
+                            message='!branch ${branch}',
+                            submit='Select',
+                            survey=msg_actions.Survey(
+                                msg_actions.SelectInput(
+                                    name='branch',
+                                    label='Branch',
+                                    options={key: value.name for key, value in self.zsr.version_map.items()}
+                                )
+                            ),
+                        ),
+                        msg_actions.ActionLink(
+                            label='Help',
+                            url='https://github.com/OoTRandomizer/rtgg-randobot/blob/master/COMMANDS.md',
+                        ),
+                    ]
+                )
+            else:
+                await self.send_message(
+                    'Sorry %(reply_to)s, that branch does not exist. '
+                    'Valid options are: %(options)s'
+                    % {
+                        'reply_to': message.get('user', {}).get('name', 'friend'),
+                        'options': ', '.join(branch[0] for branch in self.zsr.valid_versions)
+                    }
+                )
+        else:
+            await self.send_message(
+                'Sorry %(reply_to)s, that is not the correct syntax. '
+                'The syntax is "!branch branchName"'
+                % {'reply_to': message.get('user', {}).get('name', 'friend')}
+            )
 
     @monitor_cmd
     async def ex_lock(self, args, message):
@@ -227,15 +296,7 @@ class RandoHandler(RaceHandler):
         """
         if self._race_in_progress():
             return
-        await self.roll_and_send(args, message, encrypt=True, dev=False)
-
-    async def ex_seeddev(self, args, message):
-        """
-        Handle !seeddev commands.
-        """
-        if self._race_in_progress():
-            return
-        await self.roll_and_send(args, message, encrypt=True, dev=True)
+        await self.roll_and_send(args, message, branch=self.randomizer_branch, encrypt=True)
 
     async def ex_spoilerseed(self, args, message):
         """
@@ -243,7 +304,7 @@ class RandoHandler(RaceHandler):
         """
         if self._race_in_progress():
             return
-        await self.roll_and_send(args, message, encrypt=False, dev=False)
+        await self.roll_and_send(args, message, branch=self.randomizer_branch, encrypt=False)
 
     async def ex_presets(self, args, message):
         """
@@ -251,15 +312,7 @@ class RandoHandler(RaceHandler):
         """
         if self._race_in_progress():
             return
-        await self.send_presets(False)
-
-    async def ex_presetsdev(self, args, message):
-        """
-        Handle !presetsdev commands.
-        """
-        if self._race_in_progress():
-            return
-        await self.send_presets(True)
+        await self.send_presets(self.randomizer_branch)
 
     @monitor_cmd
     async def ex_password(self, args, message):
@@ -336,13 +389,13 @@ class RandoHandler(RaceHandler):
             reply_to = message.get('user', {}).get('name', 'friend')
             await self.send_message(resp % {'reply_to': reply_to})
 
-    async def roll_and_send(self, args, message, encrypt, dev):
+    async def roll_and_send(self, args, message, branch, encrypt):
         """
-        Read an incoming !seed, !seeddev or !race command, and generate a new seed if
+        Read an incoming !seed command and generate a new seed if
         valid.
         """
         reply_to = message.get('user', {}).get('name')
-        preset = 's8'
+        preset = 'weekly'
 
         if len(args) > 0:
             preset = args[0]
@@ -375,26 +428,25 @@ class RandoHandler(RaceHandler):
             return
         await self.roll(
             preset=preset,
+            branch=branch,
             encrypt=encrypt,
-            dev=dev,
             reply_to=reply_to,
             password=password
         )
 
-    async def roll(self, preset, encrypt, dev, reply_to, password=False):
+    async def roll(self, preset, branch, encrypt, reply_to, password=False):
         """
         Generate a seed and send it to the race room.
         """
-        if (dev and preset not in self.zsr.presets_dev) or (not dev and preset not in self.zsr.presets):
-            res_cmd = '!presetsdev' if dev else '!presets'
+        if preset not in branch.presets:
             await self.send_message(
                 'Sorry %(reply_to)s, I don\'t recognise that preset. Use '
-                '%(res_cmd)s to see what is available.'
-                % {'res_cmd': res_cmd, 'reply_to': reply_to or 'friend'}
+                '!presets to see what is available.'
+                % {'reply_to': reply_to or 'friend'}
             )
             return
 
-        seed_id, seed_uri = self.zsr.roll_seed(preset, encrypt, dev, password)
+        seed_id, seed_uri = self.zsr.roll_seed(preset, branch, encrypt, password)
 
         await self.send_message(
             '%(reply_to)s, here is your seed: %(seed_uri)s'
@@ -415,22 +467,25 @@ class RandoHandler(RaceHandler):
         await self.check_seed_status()
 
     async def check_seed_status(self):
-        await sleep(1)
-        status = self.zsr.get_status(self.state['seed_id'])
-        if status == 0:
-            self.state['status_checks'] += 1
-            if self.state['status_checks'] < self.max_status_checks:
-                await self.check_seed_status()
-        elif status == 1:
-            await self.load_seed_hash()
-            if self.state.get('password_active'):
-                await self.load_seed_password()
-        elif status >= 2:
-            self.state['seed_id'] = None
-            await self.send_message(
-                'Sorry, but it looks like the seed failed to generate. Use '
-                '!seed to try again.'
-            )
+        while self.state['status_checks'] < self.max_status_checks:
+            status = self.zsr.get_status(self.state['seed_id'])
+
+            if status == 0:
+                self.state['status_checks'] += 1
+                await sleep(2)
+            elif status == 1:
+                await self.load_seed_hash()
+                if self.state.get('password_active'):
+                    await self.load_seed_password()
+                return
+            elif status >= 2:
+                break
+
+        self.state['seed_id'] = None
+        await self.send_message(
+            'Sorry, but it looks like the seed failed to generate. Use '
+            '!seed to try again.'
+        )
 
     async def load_seed_password(self, manual=False):
         seed_password = self.zsr.get_password(self.state['seed_id'])
@@ -457,17 +512,13 @@ class RandoHandler(RaceHandler):
             'seed_url': self.seed_url % self.state['seed_id'],
         })
 
-    async def send_presets(self, dev):
+    async def send_presets(self, branch):
         """
         Send a list of known presets to the race room.
         """
         await self.send_message('Available presets:')
-        if dev:
-            for name, preset in self.zsr.presets_dev.items():
-                await self.send_message('%s – %s' % (name, preset['full_name']))
-        else:
-            for name, preset in self.zsr.presets.items():
-                await self.send_message('%s – %s' % (name, preset['full_name']))
+        for name, preset in branch.presets.items():
+            await self.send_message('%s – %s' % (name, preset['full_name']))
 
     def _race_pending(self):
         return self.data.get('status').get('value') == 'pending'
