@@ -172,13 +172,17 @@ class Branch:
     def load_presets(self):
         settings = requests.get(self.settings_endpoint).json()
 
-        return {
-            min(settings[preset]['aliases'], key=len): {
+        presets = {}
+        for preset, preset_settings in settings.items():
+            aliases = preset_settings.get('aliases', [])
+            aliases = [alias for alias in aliases if alias]
+            if not aliases:
+                continue
+            presets[min(aliases, key=len)] = {
                 'full_name': preset,
-                'settings': settings.get(preset),
+                'settings': preset_settings,
             }
-            for preset in settings if 'aliases' in settings[preset]
-        }
+        return presets
     
     def get_latest_version(self):
         """
